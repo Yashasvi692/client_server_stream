@@ -1,84 +1,104 @@
 import asyncio
-import json
-import uuid
-from typing import AsyncIterator, Dict, Optional
+from typing import Any, Callable, Optional, AsyncIterator
 
-import websockets
+from .transport import StreamTransport
 
-from client_server_stream.server.protocol import (
-    Event,
-    build_message,
-    validate_message,
-)
+
+OnChunk = Callable[[Any], None]
+OnEnd = Callable[[], None]
+OnError = Callable[[Exception], None]
 
 
 class StreamClient:
+    """
+    PUBLIC client API.
+
+    This client supports:
+    1. Push-based streaming (addon-style)  ✅ preferred
+    2. Async iteration (legacy / internal) ⚠️ temporary
+    """
+
     def __init__(self, url: str, api_key: Optional[str] = None):
-        self.url = url
-        self.api_key = api_key
-        self._ws = None
-        self._receiver_task = None
-        self._streams: Dict[str, asyncio.Queue] = {}
-        self._lock = asyncio.Lock()
+        self._transport = StreamTransport(url, api_key)
 
-    async def connect(self):
-        if self._ws is not None:
-            return
+    # ------------------------------------------------------------------
+    # NEW: ADDON-STYLE PUSH API (THIS IS STEP 5)
+    # ------------------------------------------------------------------
 
-        async with self._lock:
-            if self._ws is not None:
-                return
+    def start_stream(
+        self,
+        *,
+        channel: str,
+        payload: Any,
+        on_chunk: OnChunk,
+        on_end: Optional[OnEnd] = None,
+        on_error: Optional[OnError] = None,
+    ) -> None:
+        """
+        Start a stream without exposing async iteration.
 
-            url = self.url
-            if self.api_key:
-                sep = "&" if "?" in url else "?"
-                url = f"{url}{sep}api_key={self.api_key}"
+        This method:
+        - returns immediately
+        - runs the stream in the background
+        - pushes data via callbacks
+        """
 
-            self._ws = await websockets.connect(url)
-            self._receiver_task = asyncio.create_task(self._receiver_loop())
-
-    async def _receiver_loop(self):
-        async for raw in self._ws:
-            msg = json.loads(raw)
-            validate_message(msg)
-
-            stream_id = msg["stream_id"]
-            queue = self._streams.get(stream_id)
-            if not queue:
-                continue
-
-            if msg["event"] == Event.STREAM_CHUNK:
-                await queue.put(msg["data"]["payload"])
-            elif msg["event"] == Event.STREAM_END:
-                await queue.put(StopAsyncIteration)
-
-    async def stream(self, payload, *, channel: str) -> AsyncIterator:
-        await self.connect()
-
-        stream_id = str(uuid.uuid4())
-        queue = asyncio.Queue()
-        self._streams[stream_id] = queue
-
-        await self._ws.send(
-            json.dumps(
-                build_message(
-                    event=Event.STREAM_START,
-                    stream_id=stream_id,
-                    channel=channel,
-                    data={"payload": payload},
-                )
+        asyncio.create_task(
+            self._run_stream(
+                channel=channel,
+                payload=payload,
+                on_chunk=on_chunk,
+                on_end=on_end,
+                on_error=on_error,
             )
         )
 
+    async def _run_stream(
+        self,
+        *,
+        channel: str,
+        payload: Any,
+        on_chunk: OnChunk,
+        on_end: Optional[OnEnd],
+        on_error: Optional[OnError],
+    ) -> None:
+        """
+        INTERNAL worker that consumes the transport stream
+        and dispatches events to callbacks.
+        """
         try:
-            while True:
-                item = await queue.get()
-                if item is StopAsyncIteration:
-                    break
-                yield item 
-        finally:
-            self._streams.pop(stream_id, None)
+            await self._transport.connect()
+
+            async for item in self._transport.open_stream(
+                channel=channel,
+                payload=payload,
+            ):
+                on_chunk(item)
+
+            if on_end:
+                on_end()
+
+        except Exception as e:
+            if on_error:
+                on_error(e)
+            else:
+                # Fail silently by default (addon-friendly behavior)
+                pass
+
+    # ------------------------------------------------------------------
+    # LEGACY API (KEEP FOR NOW — DO NOT REMOVE YET)
+    # ------------------------------------------------------------------
+
+    async def stream(self, payload, *, channel: str) -> AsyncIterator:
+        """
+        Legacy pull-based API.
+        Will be removed in a later step.
+        """
+        async for item in self._transport.open_stream(
+            channel=channel,
+            payload=payload,
+        ):
+            yield item
 
     async def close(self):
-        if self._ws:
-            await self._ws.close()
+        await self._transport.close()
