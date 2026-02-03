@@ -24,7 +24,7 @@ async def progress_stream(client: StreamClient):
 
 async def main():
     client = StreamClient(
-        "ws://localhost:8000/ws",
+        "wss://clientserverstream-production.up.railway.app/ws",
         api_key="dev-key-123",
     )
 
