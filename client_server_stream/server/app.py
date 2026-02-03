@@ -10,6 +10,11 @@ app = FastAPI()
 
 manager = StreamManager()
 limiter = StreamRateLimiter()
+from fastapi import FastAPI
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.websocket("/ws")
