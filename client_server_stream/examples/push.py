@@ -4,7 +4,7 @@ from client_server_stream.client.client import StreamClient
 
 async def main():
     client = StreamClient(
-        url="wss://clientserverstream-production.up.railway.app/ws",
+        url="wss://web-production-27a77.up.railway.app/ws",
         api_key="dev-key-123",
     )
 
