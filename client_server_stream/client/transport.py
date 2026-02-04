@@ -53,7 +53,7 @@ class StreamTransport:
                     msg = json.loads(raw)
                     validate_message(msg)
 
-                    msg_type = msg.get("type")
+                    msg_type = msg.get("event")
                     stream_id = msg.get("stream_id")
 
                     # Ignore control / ack messages
