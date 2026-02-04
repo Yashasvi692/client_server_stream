@@ -1,5 +1,5 @@
 import asyncio
-from server.plugins.base import StreamPlugin
+from .base import StreamPlugin
 
 
 class TextStreamPlugin(StreamPlugin):
