@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import asyncio
+import traceback
 
 from .protocol import validate_message, error_message, Event, ProtocolError
 from .auth import authenticate, AuthError
@@ -86,3 +87,50 @@ async def websocket_endpoint(ws: WebSocket):
         for task in active_streams.values():
             task.cancel()
             limiter.release(api_key)
+
+@app.websocket("/observe")
+async def observe_endpoint(ws: WebSocket):
+    await ws.accept()
+
+    async def emit(message: str):
+        """
+        Send plain-text observations to the client.
+        Fail silently if the socket is already closed.
+        """
+        try:
+            await ws.send_text(message)
+        except Exception:
+            pass
+
+    await emit("Observer connected")
+    await emit("Initializing server execution")
+
+    try:
+        # ---- Example observable execution ----
+        # This is where you narrate real server work later
+
+        await emit("Loading plugins")
+        await asyncio.sleep(0.5)
+
+        await emit("Starting execution")
+        await asyncio.sleep(0.5)
+
+        for i in range(1, 6):
+            await emit(f"Running step {i}")
+            await asyncio.sleep(1)
+
+        await emit("Execution completed successfully")
+
+    except Exception as e:
+        # Stream the error BEFORE dying
+        await emit("Unhandled exception occurred")
+        await emit(str(e))
+
+        # Optional: stream traceback line-by-line
+        tb = traceback.format_exc().splitlines()
+        for line in tb:
+            await emit(line)
+
+    finally:
+        await emit("Execution ended")
+        await ws.close()
