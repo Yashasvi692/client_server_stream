@@ -2,11 +2,25 @@
 import asyncio
 from .base import StreamPlugin
 
-class DebugTextPlugin(StreamPlugin):
-    channel = "text"
 
-    async def on_stream_start(self, ctx):
-        for i in range(5):
-            await ctx.send_chunk(f"chunk {i}\n")
-            await asyncio.sleep(0.2)
-        await ctx.end()
+class ProgressStreamPlugin(StreamPlugin):
+    name = "progress"
+
+    async def stream(self, payload: dict):
+        """
+        payload example:
+        {
+            "total": 100,
+            "delay": 0.05
+        }
+        """
+        total = int(payload.get("total", 100))
+        delay = float(payload.get("delay", 0.05))
+
+        for i in range(1, total + 1):
+            yield {
+                "current": i,
+                "total": total,
+                "percent": int((i / total) * 100),
+            }
+            await asyncio.sleep(delay)

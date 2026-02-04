@@ -1,11 +1,10 @@
 import asyncio
 from .base import StreamPlugin
 
-
-class TextStreamPlugin(StreamPlugin):
+class DebugTextPlugin(StreamPlugin):
     name = "text"
 
-    async def stream(self, payload: str):
-        for char in str(payload):
-            yield char
-            await asyncio.sleep(0.1)
+    async def stream(self, payload):
+        for i in range(5):
+            yield f"chunk {i}\n"
+            await asyncio.sleep(0.2)
