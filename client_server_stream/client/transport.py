@@ -28,8 +28,9 @@ class StreamTransport:
     """
 
     def __init__(self, url: str, api_key: Optional[str] = None):
-        self.url = url
-        self.api_key = api_key
+        self._url = url
+        
+        self._api_key = api_key
 
         self._ws = None
         self._receiver_task = None
