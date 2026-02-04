@@ -1,8 +1,7 @@
 import asyncio
 import json
-import queue
 import uuid
-from typing import AsyncIterator, Dict, Optional
+from typing import AsyncIterator, Optional
 
 import websockets
 
@@ -14,6 +13,7 @@ from client_server_stream.server.protocol import (
 
 _STREAM_END = object()
 
+
 class StreamTransport:
     """
     INTERNAL transport layer.
@@ -22,34 +22,29 @@ class StreamTransport:
     - WebSocket connection management
     - Protocol send/receive
     - Stream multiplexing by stream_id
-    - Async queue fan-out
-
-    This class MUST NOT expose business semantics.
     """
 
     def __init__(self, url: str, api_key: Optional[str] = None):
         self._url = url
-        
         self._api_key = api_key
 
         self._ws = None
-        self._receiver_task = None
         self._receiver_task = None
         self._streams: dict[str, asyncio.Queue] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self):
-        if self._ws is None:
-            url = self._url
-            if self._api_key:
-                sep = "&" if "?" in url else "?"
-                url = f"{url}{sep}api_key={self._api_key}"
+        async with self._lock:
+            if self._ws is None:
+                url = self._url
+                if self._api_key:
+                    sep = "&" if "?" in url else "?"
+                    url = f"{url}{sep}api_key={self._api_key}"
 
-            self._ws = await websockets.connect(url)
+                self._ws = await websockets.connect(url)
 
-        if self._receiver_task is None or self._receiver_task.done():
-            self._receiver_task = asyncio.create_task(self._receiver_loop())
-
+            if self._receiver_task is None or self._receiver_task.done():
+                self._receiver_task = asyncio.create_task(self._receiver_loop())
 
     async def _receiver_loop(self):
         try:
@@ -61,13 +56,13 @@ class StreamTransport:
                     msg_type = msg.get("type")
                     stream_id = msg.get("stream_id")
 
-                    # Ignore non-stream messages (acks, control frames, etc.)
+                    # Ignore control / ack messages
                     if not msg_type or not stream_id:
                         continue
 
                     queue = self._streams.get(stream_id)
                     if not queue:
-                        continue  # stream already closed or unknown
+                        continue
 
                     if msg_type == Event.STREAM_CHUNK.value:
                         await queue.put(msg["data"]["payload"])
@@ -77,13 +72,13 @@ class StreamTransport:
                         self._streams.pop(stream_id, None)
 
                 except Exception as e:
-                    # NEVER let the receiver task die
-                    print("[StreamTransport] Receiver error:", repr(e))
-                    continue
+                    print("[StreamTransport] receiver error:", e)
 
         except Exception as e:
-            print("[StreamTransport] Receiver loop crashed:", repr(e))
-
+            print("[StreamTransport] receiver loop stopped:", e)
+        finally:
+            # force reconnect on next use
+            self._ws = None
 
     async def open_stream(self, *, channel: str, payload) -> AsyncIterator:
         await self.connect()
@@ -109,10 +104,10 @@ class StreamTransport:
                 if item is _STREAM_END:
                     break
                 yield item
-
         finally:
             self._streams.pop(stream_id, None)
 
     async def close(self):
         if self._ws:
             await self._ws.close()
+            self._ws = None
