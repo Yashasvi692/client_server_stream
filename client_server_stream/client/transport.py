@@ -51,7 +51,6 @@ class StreamTransport:
             async for raw in self._ws:
                 try:
                     msg = json.loads(raw)
-                    validate_message(msg)
 
                     msg_type = msg.get("event")
                     stream_id = msg.get("stream_id")
