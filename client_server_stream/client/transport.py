@@ -33,23 +33,15 @@ class StreamTransport:
 
         self._ws = None
         self._receiver_task = None
+        self._receiver_task = None
         self._streams: dict[str, asyncio.Queue] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self):
-        if self._ws is not None:
-            return
+        if self._ws is None or self._ws.closed:
+            self._ws = await websockets.connect(self._url)
 
-        async with self._lock:
-            if self._ws is not None:
-                return
-
-            url = self.url
-            if self.api_key:
-                sep = "&" if "?" in url else "?"
-                url = f"{url}{sep}api_key={self.api_key}"
-
-            self._ws = await websockets.connect(url)
+        if self._receiver_task is None or self._receiver_task.done():
             self._receiver_task = asyncio.create_task(self._receiver_loop())
 
     async def _receiver_loop(self):
