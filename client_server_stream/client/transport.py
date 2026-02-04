@@ -33,8 +33,7 @@ class StreamTransport:
 
         self._ws = None
         self._receiver_task = None
-
-        self._streams: Dict[str, asyncio.Queue] = {}
+        self._streams: dict[str, asyncio.Queue] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self):
@@ -54,20 +53,37 @@ class StreamTransport:
             self._receiver_task = asyncio.create_task(self._receiver_loop())
 
     async def _receiver_loop(self):
-        async for raw in self._ws:
-            msg = json.loads(raw)
-            validate_message(msg)
+        try:
+            async for raw in self._ws:
+                try:
+                    msg = json.loads(raw)
+                    validate_message(msg)
 
-            stream_id = msg["stream_id"]
-            queue = self._streams.get(stream_id)
-            if not queue:
-                continue
+                    msg_type = msg.get("type")
+                    stream_id = msg.get("stream_id")
 
-            if msg["event"] == Event.STREAM_CHUNK:
-                await queue.put(msg["data"]["payload"])
+                    # Ignore non-stream messages (acks, control frames, etc.)
+                    if not msg_type or not stream_id:
+                        continue
 
-            elif msg["event"] == Event.STREAM_END:
-                await queue.put(_STREAM_END)
+                    queue = self._streams.get(stream_id)
+                    if not queue:
+                        continue  # stream already closed or unknown
+
+                    if msg_type == Event.STREAM_CHUNK.value:
+                        await queue.put(msg["data"]["payload"])
+
+                    elif msg_type == Event.STREAM_END.value:
+                        await queue.put(_STREAM_END)
+                        self._streams.pop(stream_id, None)
+
+                except Exception as e:
+                    # NEVER let the receiver task die
+                    print("[StreamTransport] Receiver error:", repr(e))
+                    continue
+
+        except Exception as e:
+            print("[StreamTransport] Receiver loop crashed:", repr(e))
 
 
     async def open_stream(self, *, channel: str, payload) -> AsyncIterator:
