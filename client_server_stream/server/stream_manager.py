@@ -38,3 +38,5 @@ class StreamManager:
                 stream_id=stream_id,
             )
         )
+        await router.emit(channel, "[STREAM COMPLETE]")
+

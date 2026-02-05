@@ -6,13 +6,10 @@ from .protocol import validate_message, error_message, Event, ProtocolError
 from .auth import authenticate, AuthError
 from .rate_limit import StreamRateLimiter, RateLimitError
 from .stream_manager import StreamManager
-from .channel_router import ChannelRouter
-
-router = ChannelRouter()
+from .channel_router import router
 app = FastAPI()
 manager = StreamManager()
 limiter = StreamRateLimiter()
-from fastapi import FastAPI
 
 @app.get("/health")
 def health():
@@ -53,8 +50,17 @@ async def websocket_endpoint(ws: WebSocket):
             event = msg["event"]
             stream_id = msg["stream_id"]
             channel = msg["channel"]
-            payload = msg["data"].get("payload")
-
+            payload = msg.get("data", {}).get("payload")
+            if not channel:
+                await ws.send_json(
+                    error_message(
+                        stream_id=stream_id,
+                        code="MISSING_CHANNEL",
+                        message="Channel is required for streaming"
+                    )
+                )
+                continue
+    
             if event == Event.STREAM_START:
                 if stream_id in active_streams:
                     continue
