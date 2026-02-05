@@ -67,7 +67,7 @@ async def websocket_endpoint(ws: WebSocket):
                 )
                 continue
     
-            if event == Event.STREAM_START:
+            if event == "stream.start":
                 if stream_id in active_streams:
                     continue
 
