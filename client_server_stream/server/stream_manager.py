@@ -22,7 +22,7 @@ class StreamManager:
                 )
             )
             return
-
+        print("STREAM STARTED:", plugin_name, channel, payload)
         async for chunk in plugin.stream(payload):
             await ws.send_json(
                 build_message(
