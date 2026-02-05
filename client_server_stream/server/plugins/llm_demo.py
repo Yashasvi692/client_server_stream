@@ -1,8 +1,8 @@
 import asyncio
-from .base import BasePlugin
+from .base import StreamPlugin
 
 
-class LLMDemoPlugin(BasePlugin):
+class LLMDemoPlugin(StreamPlugin):
     name = "llm_demo"
 
     async def stream(self, prompt: str):
