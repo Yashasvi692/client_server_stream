@@ -109,3 +109,7 @@ async def observe_endpoint(ws: WebSocket):
             await ws.receive_text()  # keep alive
     except WebSocketDisconnect:
         router.unsubscribe(ws)
+@app.get("/test_emit")
+async def test_emit():
+    await router.emit("button:1", "Button 1 only")
+    return {"status": "sent"}
