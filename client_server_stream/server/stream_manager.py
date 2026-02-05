@@ -15,7 +15,7 @@ class StreamManager:
                     stream_id=stream_id,
                     data={
                         "code": "UNKNOWN_CHANNEL",
-                        "message": f"No plugin '{channel}'",
+                        "message": f"No plugin '{plugin_name}'",
                     },
                 )
             )
