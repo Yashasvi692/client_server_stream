@@ -5,8 +5,10 @@ from .channel_router import router
 class StreamManager:
     def __init__(self):
         self.plugins = discover_plugins()
+        print("PLUGINS LOADED:", self.plugins)
 
     async def start_stream(self, ws, stream_id, plugin_name, channel, payload):
+        print("STREAM STARTED:", plugin_name, channel, payload)
         plugin = self.plugins.get(plugin_name)
         if not plugin:
             await ws.send_json(
@@ -30,6 +32,7 @@ class StreamManager:
                     data={"payload": chunk},
                 )
             )
+            print("EMITTING TO CHANNEL:", channel, "CHUNK:", chunk)
             await router.emit(channel, chunk)
 
         await ws.send_json(

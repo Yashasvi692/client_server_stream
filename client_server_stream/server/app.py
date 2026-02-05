@@ -34,6 +34,7 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         while True:
             msg = await ws.receive_json()
+            print("Received message:", msg)
 
             try:
                 validate_message(msg)
@@ -52,6 +53,10 @@ async def websocket_endpoint(ws: WebSocket):
             channel = msg["channel"]
             payload = msg.get("data", {}).get("payload")
             plugin_name = msg.get("plugin", "llm_demo")
+            print("PLUGIN:", plugin_name)
+            print("CHANNEL:", channel)
+            print("PAYLOAD:", payload)
+
             if not channel:
                 await ws.send_json(
                     error_message(
