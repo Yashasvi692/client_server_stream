@@ -29,3 +29,5 @@ class ChannelRouter:
                         await ws.send_text(message)
                     except Exception:
                         pass
+
+router = ChannelRouter()
