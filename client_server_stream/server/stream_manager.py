@@ -1,6 +1,6 @@
 from .protocol import Event, build_message
 from .plugins.loader import discover_plugins
-
+from .channel_router import router
 
 class StreamManager:
     def __init__(self):
@@ -30,6 +30,7 @@ class StreamManager:
                     data={"payload": chunk},
                 )
             )
+            await router.emit(channel, chunk)
 
         await ws.send_json(
             build_message(
