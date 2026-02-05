@@ -90,7 +90,7 @@ async def websocket_endpoint(ws: WebSocket):
                 )
                 active_streams[stream_id] = task
 
-            elif event == Event.STREAM_CANCEL:
+            elif event == "stream.cancel":
                 task = active_streams.pop(stream_id, None)
                 if task:
                     task.cancel()
