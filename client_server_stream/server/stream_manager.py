@@ -6,8 +6,8 @@ class StreamManager:
     def __init__(self):
         self.plugins = discover_plugins()
 
-    async def start_stream(self, ws, stream_id, channel, payload):
-        plugin = self.plugins.get(channel)
+    async def start_stream(self, ws, stream_id, plugin_name, channel, payload):
+        plugin = self.plugins.get(plugin_name)
         if not plugin:
             await ws.send_json(
                 build_message(
