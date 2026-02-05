@@ -86,7 +86,6 @@ async def websocket_endpoint(ws: WebSocket):
                 print("CREATING STREAM TASK")
                 await manager.start_stream(ws, stream_id, plugin_name, channel, payload)
 
-                active_streams[stream_id] = task
 
             elif event == "stream.cancel":
                 task = active_streams.pop(stream_id, None)
