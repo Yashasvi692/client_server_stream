@@ -12,6 +12,7 @@ class LLMDemoPlugin(StreamPlugin):
             async with client.stream(
                 "POST",
                 "https://unirritable-onomatopoetically-donna.ngrok-free.dev/generate",
+                headers={"ngrok-skip-browser-warning": "true"},
                 json={"prompt": prompt},
             ) as response:
 

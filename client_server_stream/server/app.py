@@ -43,7 +43,6 @@ async def websocket_endpoint(ws: WebSocket):
             except Exception as e:
                 print("VALIDATION ERROR:", e)
                 traceback.print_exc()
-                continue
 
                 await ws.send_json(
                     error_message(
