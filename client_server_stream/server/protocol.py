@@ -1,3 +1,4 @@
+from email.mime import message
 from typing import Any, Dict, Optional
 from enum import Enum
 
@@ -17,7 +18,6 @@ REQUIRED_FIELDS = {
     "protocol",
     "event",
     "stream_id",
-    "channel",
     "data",
     "meta",
 }
@@ -40,6 +40,9 @@ def validate_message(message: Dict[str, Any]) -> None:
     missing = REQUIRED_FIELDS - message.keys()
     if missing:
         raise ProtocolError(f"Missing required fields: {missing}")
+    
+    if "channel" not in message and "channels" not in message:
+        raise ProtocolError("Either 'channel' or 'channels' must be provided")
 
     if message["protocol"] != PROTOCOL_VERSION:
         raise ProtocolError(
@@ -54,8 +57,14 @@ def validate_message(message: Dict[str, Any]) -> None:
     if message["stream_id"] is not None and not isinstance(message["stream_id"], str):
         raise ProtocolError("stream_id must be a string or null")
 
-    if message["channel"] is not None and not isinstance(message["channel"], str):
-        raise ProtocolError("channel must be a string or null")
+    if "channels" in message:
+        if not isinstance(message["channels"], list):
+            raise ProtocolError("channels must be a list")
+
+        for ch in message["channels"]:
+            if not isinstance(ch, str):
+                raise ProtocolError("each channel must be a string")
+
 
     if not isinstance(message["data"], dict):
         raise ProtocolError("data must be an object")

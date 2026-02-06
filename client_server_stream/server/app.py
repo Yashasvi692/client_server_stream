@@ -56,14 +56,14 @@ async def websocket_endpoint(ws: WebSocket):
 
             event = msg["event"]
             stream_id = msg["stream_id"]
-            channel = msg["channel"]
+            channels = msg.get("channels") or [msg.get("channel")]
             payload = msg.get("data", {}).get("payload")
             plugin_name = msg.get("plugin", "llm_demo")
             print("PLUGIN:", plugin_name)
-            print("CHANNEL:", channel)
+            print("CHANNEL:", channels)
             print("PAYLOAD:", payload)
 
-            if not channel:
+            if not channels:
                 await ws.send_json(
                     error_message(
                         stream_id=stream_id,
@@ -90,7 +90,7 @@ async def websocket_endpoint(ws: WebSocket):
                     continue
                 
                 task = asyncio.create_task(
-                    manager.start_stream(None, stream_id, plugin_name, channel, payload)
+                    manager.start_stream(None, stream_id, plugin_name, channels, payload)
                 )   
 
                 active_streams[stream_id] = task
