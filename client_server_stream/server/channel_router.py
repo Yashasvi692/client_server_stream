@@ -15,6 +15,7 @@ class ChannelRouter:
     async def emit(self, channel, message):
         for ws in list(self.channels[channel]):
             try:
+                print("ROUTER EMIT:", channel, message)
                 await ws.send_text(message)
             except Exception:
                 pass
