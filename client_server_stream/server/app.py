@@ -35,10 +35,16 @@ async def websocket_endpoint(ws: WebSocket):
         while True:
             msg = await ws.receive_json()
             print("Received message:", msg)
+            print("CREATING STREAM TASK")
+
 
             try:
                 validate_message(msg)
-            except ProtocolError as e:
+            except Exception as e:
+                print("VALIDATION ERROR:", e)
+                traceback.print_exc()
+                continue
+
                 await ws.send_json(
                     error_message(
                         stream_id=msg.get("stream_id"),
@@ -83,7 +89,6 @@ async def websocket_endpoint(ws: WebSocket):
                     )
                     continue
                 
-                print("CREATING STREAM TASK")
                 task = asyncio.create_task(
                     manager.start_stream(None, stream_id, plugin_name, channel, payload)
                 )   
