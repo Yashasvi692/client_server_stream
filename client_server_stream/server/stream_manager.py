@@ -1,3 +1,4 @@
+from fastapi.websockets import WebSocketState
 from .protocol import Event, build_message
 from .plugins.loader import discover_plugins
 from .channel_router import router
@@ -11,11 +12,12 @@ class StreamManager:
         print("STREAM STARTED:", plugin_name, channel, payload)
         plugin = self.plugins.get(plugin_name)
         if not plugin:
-            await ws.send_json(
-                build_message(
-                    event=Event.ERROR,
-                    stream_id=stream_id,
-                    data={
+            if ws and ws.application_state == WebSocketState.CONNECTED:
+                await ws.send_json(
+                    build_message(
+                        event=Event.ERROR,
+                        stream_id=stream_id,
+                        data={
                         "code": "UNKNOWN_CHANNEL",
                         "message": f"No plugin '{plugin_name}'",
                     },
@@ -24,22 +26,26 @@ class StreamManager:
             return
         print("STREAM STARTED:", plugin_name, channel, payload)
         async for chunk in plugin.stream(payload):
-            await ws.send_json(
-                build_message(
-                    event=Event.STREAM_CHUNK,
-                    stream_id=stream_id,
-                    channel=channel,
-                    data={"payload": chunk},
+            if ws:
+                await ws.send_json(
+                    build_message(
+                        event=Event.STREAM_CHUNK,
+                        stream_id=stream_id,
+                        channel=channel,
+                        data={"payload": chunk},
+                    )
                 )
-            )
+
             print("EMITTING TO CHANNEL:", channel, "CHUNK:", chunk)
             await router.emit(channel, chunk)
 
-        await ws.send_json(
-            build_message(
-                event=Event.STREAM_END,
-                stream_id=stream_id,
+        if ws:
+            await ws.send_json(
+                build_message(
+                    event=Event.STREAM_END,
+                    stream_id=stream_id,
+                )
             )
-        )
+
         await router.emit(channel, "[STREAM COMPLETE]")
 
