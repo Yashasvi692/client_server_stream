@@ -10,7 +10,6 @@ class StreamManager:
         
     def get_all_channels(self):
         return list(router.get_all_channels())
-
     async def start_stream(self, ws, stream_id, plugin_name, channels, payload):
         print("STREAM STARTED:", plugin_name, channels, payload)
         plugin = self.plugins.get(plugin_name)
@@ -21,27 +20,27 @@ class StreamManager:
                         event=Event.ERROR,
                         stream_id=stream_id,
                         data={
-                        "code": "UNKNOWN_CHANNEL",
-                        "message": f"No plugin '{plugin_name}'",
-                    },
+                            "code": "UNKNOWN_CHANNEL",
+                            "message": f"No plugin '{plugin_name}'",
+                        },
+                    )
                 )
-            )
             return
+
         print("STREAM STARTED:", plugin_name, channels, payload)
+
         async for chunk in plugin.stream(payload):
             if ws:
                 await ws.send_json(
                     build_message(
                         event=Event.STREAM_CHUNK,
                         stream_id=stream_id,
-                        channel=channels,
                         data={"payload": chunk},
                     )
                 )
 
             targets = set(channels)
 
-            #homepage broadcast rule
             if "homepage" in channels:
                 targets.update(router.get_all_channels())
 
@@ -58,7 +57,6 @@ class StreamManager:
 
         targets = set(channels)
 
-        # homepage broadcast rule
         if "homepage" in channels:
             targets.update(router.get_all_channels())
 
