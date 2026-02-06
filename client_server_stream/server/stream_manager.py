@@ -7,6 +7,9 @@ class StreamManager:
     def __init__(self):
         self.plugins = discover_plugins()
         print("PLUGINS LOADED:", self.plugins)
+        
+    def get_all_channels(self):
+        return list(router.get_all_channels())
 
     async def start_stream(self, ws, stream_id, plugin_name, channels, payload):
         print("STREAM STARTED:", plugin_name, channels, payload)
@@ -36,10 +39,14 @@ class StreamManager:
                     )
                 )
 
-            print("EMITTING TO CHANNEL:", channels, "CHUNK:", chunk)
-            for ch in channels:
-                await router.emit(ch, chunk)
+            targets = set(channels)
 
+            #homepage broadcast rule
+            if "homepage" in channels:
+                targets.update(router.get_all_channels())
+
+            for ch in targets:
+                await router.emit(ch, chunk)
 
         if ws:
             await ws.send_json(
@@ -49,7 +56,14 @@ class StreamManager:
                 )
             )
 
-        for ch in channels:
+        targets = set(channels)
+
+        # homepage broadcast rule
+        if "homepage" in channels:
+            targets.update(router.get_all_channels())
+
+        for ch in targets:
             await router.emit(ch, "[STREAM COMPLETE]")
+
 
 
