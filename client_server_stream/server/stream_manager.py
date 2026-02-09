@@ -31,7 +31,7 @@ class StreamManager:
                     build_message(
                         event=Event.STREAM_CHUNK,
                         stream_id=stream_id,
-                        channel=channels,
+                        channel=channels[0] if isinstance(channels, list) else channels,
                         data={"payload": chunk},
                     )
                 )
@@ -41,7 +41,7 @@ class StreamManager:
 
             # homepage acts as abstraction / broadcast
             if "homepage" in channels:
-                targets.update(router.subscriptions.keys())
+                targets.update(list(router.subscriptions.keys()))
 
             for ch in targets:
                 await router.emit(ch, chunk)
@@ -59,7 +59,7 @@ class StreamManager:
         targets = set(channels)
 
         if "homepage" in channels:
-            targets.update(router.subscriptions.keys())
+            targets.update(list(router.subscriptions.keys()))
 
         for ch in targets:
             await router.emit(ch, "[STREAM COMPLETE]")
