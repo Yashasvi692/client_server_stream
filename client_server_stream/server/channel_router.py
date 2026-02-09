@@ -1,4 +1,5 @@
 from collections import defaultdict
+import json
 
 class ChannelRouter:
     def __init__(self):
@@ -16,7 +17,7 @@ class ChannelRouter:
         for ws in list(self.channels[channel]):
             try:
                 print("ROUTER EMIT:", channel, message)
-                await ws.send_text(message)
+                await ws.send_text(json.dumps(message))
             except Exception:
                 pass
 
@@ -27,7 +28,7 @@ class ChannelRouter:
                 if ws not in seen:
                     seen.add(ws)
                     try:
-                        await ws.send_text(message)
+                        await ws.send_text(json.dumps(message))
                     except Exception:
                         pass
 

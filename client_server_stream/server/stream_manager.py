@@ -2,6 +2,7 @@ from fastapi.websockets import WebSocketState
 from .protocol import Event, build_message
 from .plugins.loader import discover_plugins
 from .channel_router import router
+import json
 
 class StreamManager:
     def __init__(self):
@@ -46,13 +47,20 @@ class StreamManager:
 
             # Homepage acts as abstraction hub
             if "homepage" in channels:
-                targets.update(router.subscriptions.keys())
+                targets.update(router.channels.keys())
 
             print("EMITTING TO CHANNELS:", targets, "CHUNK:", chunk)
 
             for ch in targets:
                 if isinstance(ch, str):
-                    await router.emit(ch, chunk)
+                    await router.emit(
+                        ch,
+                        build_message(
+                            event=Event.STREAM_CHUNK,
+                            stream_id=stream_id,
+                            data={"payload": chunk},
+                        ),
+                    )
 
         # Stream end control message
         if ws:
@@ -67,8 +75,15 @@ class StreamManager:
         targets = set(channels)
 
         if "homepage" in channels:
-            targets.update(router.subscriptions.keys())
+            targets.update(router.channels.keys())
 
         for ch in targets:
             if isinstance(ch, str):
-                await router.emit(ch, "[STREAM COMPLETE]")
+                await router.emit(
+                    ch,
+                    build_message(
+                        event=Event.STREAM_END,
+                        stream_id=stream_id,
+                    ),
+                )
+
