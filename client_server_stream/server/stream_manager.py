@@ -1,4 +1,5 @@
 from fastapi.websockets import WebSocketState
+from torch import chunk
 from .protocol import Event, build_message
 from .plugins.loader import discover_plugins
 from .channel_router import router
@@ -37,8 +38,15 @@ class StreamManager:
                 )
 
             print("EMITTING TO CHANNEL:", channels, "CHUNK:", chunk)
-            for ch in channels:
+            targets = set(channels)
+
+            # homepage acts as abstraction / broadcast
+            if "homepage" in channels:
+                targets.update(router.subscriptions.keys())
+
+            for ch in targets:
                 await router.emit(ch, chunk)
+
 
 
         if ws:
@@ -49,7 +57,13 @@ class StreamManager:
                 )
             )
 
-        for ch in channels:
+        targets = set(channels)
+
+        if "homepage" in channels:
+            targets.update(router.subscriptions.keys())
+
+        for ch in targets:
             await router.emit(ch, "[STREAM COMPLETE]")
+
 
 
