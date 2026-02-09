@@ -1,8 +1,8 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import asyncio
 import traceback
-
-from .protocol import validate_message, error_message, Event, ProtocolError
+import uuid
+from .protocol import validate_message, error_message, Event, build_message
 from .auth import authenticate, AuthError
 from .rate_limit import StreamRateLimiter, RateLimitError
 from .stream_manager import StreamManager
@@ -71,7 +71,7 @@ async def websocket_endpoint(ws: WebSocket):
                     )
                 )
                 continue
-    
+
             if event == "stream.start":
                 if stream_id in active_streams:
                     continue
@@ -87,10 +87,26 @@ async def websocket_endpoint(ws: WebSocket):
                         )
                     )
                     continue
-                
+
+                # Generate candidate_id / message_id (UUIDs)
+                candidate_id = uuid.uuid4().hex
+                message_id = uuid.uuid4().hex
+
+                # Optionally, notify control socket that candidate was created (so client can display it)
+                await ws.send_json(
+                    build_message(
+                        event=Event.STREAM_START,
+                        stream_id=stream_id,
+                        candidate_id=candidate_id,
+                        message_id=message_id,
+                        data={"info": "stream starting", "candidate_id": candidate_id, "message_id": message_id},
+                    )
+                )
+
+                # schedule stream with candidate info
                 task = asyncio.create_task(
-                    manager.start_stream(None, stream_id, plugin_name, channels, payload)
-                )   
+                    manager.start_stream(None, stream_id, plugin_name, channels, payload, candidate_id=candidate_id, message_id=message_id)
+                )
 
                 active_streams[stream_id] = task
 
@@ -109,16 +125,25 @@ async def websocket_endpoint(ws: WebSocket):
 async def observe_endpoint(ws: WebSocket):
     await ws.accept()
 
+    # support either channels= or candidate_id=
     channels_param = ws.query_params.get("channels")
-    if not channels_param:
-        await ws.send_text("No channel specified")
+    candidate_param = ws.query_params.get("candidate_id")
+
+    if not channels_param and not candidate_param:
+        await ws.send_text("No channel or candidate_id specified")
         await ws.close()
         return
 
-    channels = [c.strip() for c in channels_param.split(",")]
-    router.subscribe(ws, channels)
+    if channels_param:
+        channels = [c.strip() for c in channels_param.split(",")]
+        router.subscribe(ws, channels)
+        await ws.send_text(f"Subscribed to channels: {', '.join(channels)}")
 
-    await ws.send_text(f"Subscribed to: {', '.join(channels)}")
+    if candidate_param:
+        # support comma separated candidate ids or single
+        candidates = [c.strip() for c in candidate_param.split(",")]
+        router.subscribe_candidate(ws, candidates)
+        await ws.send_text(f"Subscribed to candidate(s): {', '.join(candidates)}")
 
     try:
         while True:

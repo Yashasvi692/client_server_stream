@@ -2,7 +2,6 @@ from email.mime import message
 from typing import Any, Dict, Optional
 from enum import Enum
 
-
 PROTOCOL_VERSION = "streamkit/1.0"
 
 
@@ -27,13 +26,12 @@ class ProtocolError(Exception):
     """Raised when a protocol violation occurs."""
 
 
-def validate_message(message: Dict[str, Any]) -> None:
-    """
-    Validate an incoming or outgoing protocol message.
+# add to the top imports if needed
+from typing import Any, Dict, Optional
 
-    Raises:
-        ProtocolError: if message violates protocol rules
-    """
+# Keep PROTOCOL_VERSION, Event, REQUIRED_FIELDS as-is
+
+def validate_message(message: Dict[str, Any]) -> None:
     if not isinstance(message, dict):
         raise ProtocolError("Message must be a JSON object")
 
@@ -41,8 +39,9 @@ def validate_message(message: Dict[str, Any]) -> None:
     if missing:
         raise ProtocolError(f"Missing required fields: {missing}")
     
-    if "channel" not in message and "channels" not in message:
-        raise ProtocolError("Either 'channel' or 'channels' must be provided")
+    # Allow either channel(s) OR candidate_id
+    if ("channel" not in message and "channels" not in message and "candidate_id" not in message):
+        raise ProtocolError("Either 'channel'/'channels' or 'candidate_id' must be provided")
 
     if message["protocol"] != PROTOCOL_VERSION:
         raise ProtocolError(
@@ -65,6 +64,14 @@ def validate_message(message: Dict[str, Any]) -> None:
             if not isinstance(ch, str):
                 raise ProtocolError("each channel must be a string")
 
+    # candidate_id check (if present)
+    if "candidate_id" in message and message["candidate_id"] is not None:
+        if not isinstance(message["candidate_id"], str):
+            raise ProtocolError("candidate_id must be a string")
+
+    if "message_id" in message and message["message_id"] is not None:
+        if not isinstance(message["message_id"], str):
+            raise ProtocolError("message_id must be a string")
 
     if not isinstance(message["data"], dict):
         raise ProtocolError("data must be an object")
@@ -78,17 +85,18 @@ def build_message(
     event: Event,
     stream_id: Optional[str] = None,
     channel: Optional[str] = None,
+    candidate_id: Optional[str] = None,
+    message_id: Optional[str] = None,
     data: Optional[Dict[str, Any]] = None,
     meta: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """
-    Build and validate a protocol-compliant message.
-    """
     message = {
         "protocol": PROTOCOL_VERSION,
         "event": event.value,
         "stream_id": stream_id,
         "channel": channel,
+        "candidate_id": candidate_id,
+        "message_id": message_id,
         "data": data or {},
         "meta": meta or {},
     }
