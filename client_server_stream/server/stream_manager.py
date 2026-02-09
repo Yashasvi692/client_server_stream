@@ -7,9 +7,9 @@ class StreamManager:
     def __init__(self):
         self.plugins = discover_plugins()
         print("PLUGINS LOADED:", self.plugins)
-
     async def start_stream(self, ws, stream_id, plugin_name, channels, payload):
         print("STREAM STARTED:", plugin_name, channels, payload)
+
         plugin = self.plugins.get(plugin_name)
         if not plugin:
             if ws and ws.application_state == WebSocketState.CONNECTED:
@@ -18,36 +18,43 @@ class StreamManager:
                         event=Event.ERROR,
                         stream_id=stream_id,
                         data={
-                        "code": "UNKNOWN_CHANNEL",
-                        "message": f"No plugin '{plugin_name}'",
-                    },
+                            "code": "UNKNOWN_CHANNEL",
+                            "message": f"No plugin '{plugin_name}'",
+                        },
+                    )
                 )
-            )
             return
-        print("STREAM STARTED:", plugin_name, channels, payload)
+
+        # Normalize channels to list of strings
+        if isinstance(channels, str):
+            channels = [channels]
+
         async for chunk in plugin.stream(payload):
+
+            # Control WS response (optional)
             if ws:
                 await ws.send_json(
                     build_message(
                         event=Event.STREAM_CHUNK,
                         stream_id=stream_id,
-                        channel=channels[0] if isinstance(channels, list) else channels,
                         data={"payload": chunk},
                     )
                 )
 
-            print("EMITTING TO CHANNEL:", channels, "CHUNK:", chunk)
+            # Broadcast logic
             targets = set(channels)
 
-            # homepage acts as abstraction / broadcast
+            # Homepage acts as abstraction hub
             if "homepage" in channels:
-                targets.update(list(router.subscriptions.keys()))
+                targets.update(router.subscriptions.keys())
+
+            print("EMITTING TO CHANNELS:", targets, "CHUNK:", chunk)
 
             for ch in targets:
-                await router.emit(ch, chunk)
+                if isinstance(ch, str):
+                    await router.emit(ch, chunk)
 
-
-
+        # Stream end control message
         if ws:
             await ws.send_json(
                 build_message(
@@ -56,13 +63,12 @@ class StreamManager:
                 )
             )
 
+        # Broadcast stream completion
         targets = set(channels)
 
         if "homepage" in channels:
-            targets.update(list(router.subscriptions.keys()))
+            targets.update(router.subscriptions.keys())
 
         for ch in targets:
-            await router.emit(ch, "[STREAM COMPLETE]")
-
-
-
+            if isinstance(ch, str):
+                await router.emit(ch, "[STREAM COMPLETE]")
