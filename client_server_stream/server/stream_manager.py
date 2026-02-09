@@ -1,5 +1,4 @@
 from fastapi.websockets import WebSocketState
-from torch import chunk
 from .protocol import Event, build_message
 from .plugins.loader import discover_plugins
 from .channel_router import router
