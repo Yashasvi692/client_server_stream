@@ -20,17 +20,15 @@ class StreamManager:
 
         # Ensure IDs exist
         # Determine candidate_id properly
-        # Normalize channels FIRST
-        if isinstance(channels, str):
-            channels = [channels]
-
-        # Ensure IDs exist
         if candidate_id is None:
-            if channels and len(channels) > 0:
-        # Always bind candidate_id to first channel
+            if channels and len(channels) == 1:
                 candidate_id = channels[0]
+            elif channels and "homepage" in channels:
+                candidate_id = "homepage"
             else:
-                candidate_id = uuid.uuid4().hex
+                raise ValueError(
+                    "candidate_id must be provided or derivable from exactly one channel"
+                )
 
 
         if message_id is None:
@@ -69,38 +67,31 @@ class StreamManager:
                 broadcast_channels = channels
 
             router.register_candidate_channels(candidate_id, broadcast_channels)
-        try:
-            async for chunk in plugin.stream(payload):
-                # Build the chunk message (include candidate_id & message_id)
-                chunk_msg = build_message(
-                    event=Event.STREAM_CHUNK,
-                    stream_id=stream_id,
-                    candidate_id=candidate_id,
-                    message_id=message_id,
-                    data={"payload": chunk},
-                )
-
-                # If ws exists (control socket) also send control messages (optional)
-                if ws:
-                    await ws.send_json(chunk_msg)
-
-                # Emit to candidate subscribers (primary)
-                await router.emit_candidate(candidate_id, chunk_msg)
-
-            # After stream finishes, send STREAM_END message
-            end_msg = build_message(
-                event=Event.STREAM_END,
+        async for chunk in plugin.stream(payload):
+            # Build the chunk message (include candidate_id & message_id)
+            chunk_msg = build_message(
+                event=Event.STREAM_CHUNK,
                 stream_id=stream_id,
                 candidate_id=candidate_id,
                 message_id=message_id,
+                data={"payload": chunk},
             )
-
+            # If ws exists (control socket) also send control messages (optional)
             if ws:
-                await ws.send_json(end_msg)
+                await ws.send_json(chunk_msg)
 
-            await router.emit_candidate(candidate_id, end_msg)
+            # Emit to candidate subscribers (primary)
+            await router.emit_candidate(candidate_id, chunk_msg)
 
-        finally:
-            if candidate_id not in router.channels:
-                router.unregister_candidate(candidate_id)
+        # After stream finishes, send STREAM_END message
+        end_msg = build_message(
+            event=Event.STREAM_END,
+            stream_id=stream_id,
+            candidate_id=candidate_id,
+            message_id=message_id,
+        )
 
+        if ws:
+            await ws.send_json(end_msg)
+
+        await router.emit_candidate(candidate_id, end_msg)
