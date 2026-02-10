@@ -20,7 +20,10 @@ class StreamManager:
 
         # Ensure IDs exist
         if candidate_id is None:
-            candidate_id = uuid.uuid4().hex
+            if channels and len(channels) == 1:
+                candidate_id = channels[0]
+            else:
+                candidate_id = uuid.uuid4().hex
         if message_id is None:
             message_id = uuid.uuid4().hex
 
