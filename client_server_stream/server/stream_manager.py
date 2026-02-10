@@ -20,19 +20,18 @@ class StreamManager:
 
         # Ensure IDs exist
         # Determine candidate_id properly
+        # Normalize channels FIRST
+        if isinstance(channels, str):
+            channels = [channels]
+
+        # Ensure IDs exist
         if candidate_id is None:
-            if channels:
-                # If homepage broadcast, keep candidate_id as homepage
-                if "homepage" in channels:
-                    candidate_id = "homepage"
-                # Single channel
-                elif len(channels) == 1:
-                    candidate_id = channels[0]
-                # Multiple explicit channels
-                else:
-                    candidate_id = channels[0]  # pick primary channel
+            if channels and len(channels) > 0:
+        # Always bind candidate_id to first channel
+                candidate_id = channels[0]
             else:
                 candidate_id = uuid.uuid4().hex
+
 
         if message_id is None:
             message_id = uuid.uuid4().hex
@@ -101,6 +100,6 @@ class StreamManager:
 
             await router.emit_candidate(candidate_id, end_msg)
 
-        finally:
-            # Cleanup mapping so future streams don't accidentally broadcast
+        if candidate_id not in router.channels:
             router.unregister_candidate(candidate_id)
+
