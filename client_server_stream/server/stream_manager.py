@@ -19,11 +19,21 @@ class StreamManager:
         print("STREAM STARTED:", plugin_name, channels, payload)
 
         # Ensure IDs exist
+        # Determine candidate_id properly
         if candidate_id is None:
-            if channels and len(channels) == 1:
-                candidate_id = channels[0]
+            if channels:
+                # If homepage broadcast, keep candidate_id as homepage
+                if "homepage" in channels:
+                    candidate_id = "homepage"
+                # Single channel
+                elif len(channels) == 1:
+                    candidate_id = channels[0]
+                # Multiple explicit channels
+                else:
+                    candidate_id = channels[0]  # pick primary channel
             else:
                 candidate_id = uuid.uuid4().hex
+
         if message_id is None:
             message_id = uuid.uuid4().hex
 
@@ -51,11 +61,15 @@ class StreamManager:
         # Register candidate->channels if channels provided (backwards compat)
         if channels:
             # Special case: "homepage" means broadcast to all current channels
-            if "homepage" in channels:
-                # snapshot current channels
-                channels = list(router.channels.keys())
-            router.register_candidate_channels(candidate_id, channels)
+            broadcast = False
 
+            if "homepage" in channels:
+                broadcast = True
+                broadcast_channels = list(router.channels.keys())
+            else:
+                broadcast_channels = channels
+
+            router.register_candidate_channels(candidate_id, broadcast_channels)
         try:
             async for chunk in plugin.stream(payload):
                 # Build the chunk message (include candidate_id & message_id)
