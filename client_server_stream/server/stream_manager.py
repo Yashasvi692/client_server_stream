@@ -100,6 +100,7 @@ class StreamManager:
 
             await router.emit_candidate(candidate_id, end_msg)
 
-        if candidate_id not in router.channels:
-            router.unregister_candidate(candidate_id)
+        finally:
+            if candidate_id not in router.channels:
+                router.unregister_candidate(candidate_id)
 
