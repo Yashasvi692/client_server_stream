@@ -125,31 +125,23 @@ async def websocket_endpoint(ws: WebSocket):
 async def observe_endpoint(ws: WebSocket):
     await ws.accept()
 
-    channels_param = ws.query_params.get("channels")
     candidate_param = ws.query_params.get("candidate_id")
 
-    if candidate_param:
-        router.subscribe_candidate(ws, [candidate_param])
-        router.subscribe_service(candidate_param, ["homepage"])
-
-    if not channels_param and not candidate_param:
-        await ws.send_text("No channel or candidate_id specified")
+    if not candidate_param:
+        await ws.send_text("candidate_id required")
         await ws.close()
         return
 
-    if channels_param:
-        channels = [c.strip() for c in channels_param.split(",")]
-        router.subscribe(ws, channels)
-        await ws.send_text(f"Subscribed to channels: {', '.join(channels)}")
+    # Register candidate subscription
+    router.subscribe_candidate(ws, [candidate_param])
 
-    if candidate_param:
-        # support comma separated candidate ids or single
-        candidates = [c.strip() for c in candidate_param.split(",")]
-        router.subscribe_candidate(ws, candidates)
-        await ws.send_text(f"Subscribed to candidate(s): {', '.join(candidates)}")
+    # Always subscribe homepage service
+    router.subscribe_service(candidate_param, ["homepage"])
+
+    print("OBSERVE CONNECTED:", candidate_param)
 
     try:
         while True:
-            await ws.receive_text()  # keep alive
+            await ws.receive_text()
     except WebSocketDisconnect:
         router.unsubscribe(ws)

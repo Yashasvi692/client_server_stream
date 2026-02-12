@@ -68,13 +68,13 @@ class ChannelRouter:
 
     # Emit to candidate subscribers, and also to any channel subscribers mapped to this candidate
     async def emit_candidate(self, candidate_id, message):
-        # send to explicit candidate subscribers
+        seen = set()
+
         for ws in list(self.candidates.get(candidate_id, set())):
-            try:
-                print("ROUTER EMIT CANDIDATE:", candidate_id, message)
+            if ws not in seen:
+                seen.add(ws)
                 await ws.send_text(json.dumps(message))
-            except Exception:
-                pass
+
 
         # also send to channel subscribers that were registered for this candidate
         for ch in self.client_services.get(candidate_id, []):
