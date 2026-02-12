@@ -6,16 +6,21 @@ class AuthError(Exception):
 
 
 # In-memory API key store (replaceable with DB / Redis later)
-VALID_API_KEYS: Dict[str, Dict] = {
-    "dev-key-123": {
-        "client": "local-dev",
+VALID_API_KEYS = {
+    "user1-key": {
+        "client": "user1",
         "max_streams": 5,
     },
-    "demo-key-456": {
-        "client": "demo-user",
-        "max_streams": 2,
+    "user2-key": {
+        "client": "user2",
+        "max_streams": 5,
+    },
+    "user3-key": {
+        "client": "user3",
+        "max_streams": 5,
     },
 }
+
 
 
 def authenticate(api_key: str | None) -> Dict:
