@@ -4,34 +4,38 @@ from .plugins.loader import discover_plugins
 from .channel_router import router
 import uuid
 
+
 class StreamManager:
     def __init__(self):
         self.plugins = discover_plugins()
         print("PLUGINS LOADED:", self.plugins)
 
-    async def start_stream(self, ws, stream_id, plugin_name, channels, payload, candidate_id=None, message_id=None):
+    async def start_stream(
+        self,
+        ws,
+        stream_id,
+        plugin_name,
+        channels,
+        payload,
+        candidate_id=None,
+        message_id=None,
+    ):
         """
         Start a streaming session.
 
-        candidate_id/message_id: If provided, use them. Otherwise generate UUIDs.
-        channels: legacy channels list (optional) — if provided we register candidate->channels mapping so channel subscribers also receive the stream.
+        IMPORTANT ARCHITECTURE RULES:
+        - candidate_id represents CLIENT identity.
+        - Services/channels are managed separately by router.
+        - Streaming should NEVER change subscription state.
         """
+
         print("STREAM STARTED:", plugin_name, channels, payload)
 
-        # Ensure IDs exist
-        # Determine candidate_id properly
-        if candidate_id is None:
-            if channels and len(channels) == 1:
-                candidate_id = channels[0]
-            elif channels and "homepage" in channels:
-                candidate_id = "homepage"
-            else:
-                raise ValueError(
-                    "candidate_id must be provided or derivable from exactly one channel"
-                )
+        # Candidate ID must come from client identity (not channels)
+        if not candidate_id:
+            raise ValueError("candidate_id must be provided by client identity")
 
-
-        if message_id is None:
+        if not message_id:
             message_id = uuid.uuid4().hex
 
         plugin = self.plugins.get(plugin_name)
@@ -51,39 +55,32 @@ class StreamManager:
                 )
             return
 
-        # Normalize channels to list of strings
+        # Normalize channels (informational only, not subscription control)
         if isinstance(channels, str):
             channels = [channels]
 
-        # Register candidate->channels if channels provided (backwards compat)
-        if channels:
-            # Special case: "homepage" means broadcast to all current channels
-            broadcast = False
+        # STREAM EXECUTION
+        try:
+            async for chunk in plugin.stream(payload):
+                chunk_msg = build_message(
+                    event=Event.STREAM_CHUNK,
+                    stream_id=stream_id,
+                    candidate_id=candidate_id,
+                    message_id=message_id,
+                    data={"payload": chunk},
+                )
 
-            if "homepage" in channels:
-                broadcast = True
-                broadcast_channels = list(router.channels.keys())
-            else:
-                broadcast_channels = channels
+                # Optional control socket echo
+                if ws and ws.application_state == WebSocketState.CONNECTED:
+                    await ws.send_json(chunk_msg)
 
-            router.register_candidate_channels(candidate_id, broadcast_channels)
-        async for chunk in plugin.stream(payload):
-            # Build the chunk message (include candidate_id & message_id)
-            chunk_msg = build_message(
-                event=Event.STREAM_CHUNK,
-                stream_id=stream_id,
-                candidate_id=candidate_id,
-                message_id=message_id,
-                data={"payload": chunk},
-            )
-            # If ws exists (control socket) also send control messages (optional)
-            if ws:
-                await ws.send_json(chunk_msg)
+                # Router handles who actually receives it
+                await router.emit_candidate(candidate_id, chunk_msg)
 
-            # Emit to candidate subscribers (primary)
-            await router.emit_candidate(candidate_id, chunk_msg)
+        except Exception as e:
+            print("STREAM ERROR:", e)
 
-        # After stream finishes, send STREAM_END message
+        # STREAM END MESSAGE
         end_msg = build_message(
             event=Event.STREAM_END,
             stream_id=stream_id,
@@ -91,7 +88,7 @@ class StreamManager:
             message_id=message_id,
         )
 
-        if ws:
+        if ws and ws.application_state == WebSocketState.CONNECTED:
             await ws.send_json(end_msg)
 
         await router.emit_candidate(candidate_id, end_msg)

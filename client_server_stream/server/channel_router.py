@@ -7,6 +7,7 @@ class ChannelRouter:
         self.channels = defaultdict(set)
         # candidate_id -> set(ws)
         self.candidates = defaultdict(set)
+        self.client_services = defaultdict(set)
         # candidate_id -> list(channel_name)
         self.candidate_channels = {}
 
@@ -19,6 +20,9 @@ class ChannelRouter:
     def subscribe_candidate(self, ws, candidate_ids):
         for cid in candidate_ids:
             self.candidates[cid].add(ws)
+
+    def subscribe_service(self, candidate_id, services):
+        self.client_services[candidate_id].update(services)
 
     # Unsubscribe a ws from both channels and candidates
     def unsubscribe(self, ws):
@@ -73,7 +77,7 @@ class ChannelRouter:
                 pass
 
         # also send to channel subscribers that were registered for this candidate
-        for ch in self.candidate_channels.get(candidate_id, []):
+        for ch in self.client_services.get(candidate_id, []):
             for ws in list(self.channels.get(ch, set())):
                 try:
                     print(f"ROUTER EMIT CANDIDATE->CHANNEL: {candidate_id} -> {ch}", message)

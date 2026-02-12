@@ -89,7 +89,7 @@ async def websocket_endpoint(ws: WebSocket):
                     continue
 
                 # Generate candidate_id / message_id (UUIDs)
-                candidate_id = uuid.uuid4().hex
+                candidate_id = client_info["client"]                                                                                                                                                                                                
                 message_id = uuid.uuid4().hex
 
                 # Optionally, notify control socket that candidate was created (so client can display it)
@@ -125,9 +125,12 @@ async def websocket_endpoint(ws: WebSocket):
 async def observe_endpoint(ws: WebSocket):
     await ws.accept()
 
-    # support either channels= or candidate_id=
     channels_param = ws.query_params.get("channels")
     candidate_param = ws.query_params.get("candidate_id")
+
+    if candidate_param:
+        router.subscribe_candidate(ws, [candidate_param])
+        router.subscribe_service(candidate_param, ["homepage"])
 
     if not channels_param and not candidate_param:
         await ws.send_text("No channel or candidate_id specified")
