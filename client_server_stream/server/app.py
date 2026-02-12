@@ -123,20 +123,15 @@ async def websocket_endpoint(ws: WebSocket):
 
 @app.websocket("/observe")
 async def observe_endpoint(ws: WebSocket):
+    print("OBSERVE SOCKET CONNECT ATTEMPT")
     await ws.accept()
 
     candidate_param = ws.query_params.get("candidate_id")
+    print("OBSERVE CANDIDATE:", candidate_param)
 
-    if not candidate_param:
-        await ws.send_text("candidate_id required")
-        await ws.close()
-        return
-
-    # Register candidate subscription
     router.subscribe_candidate(ws, [candidate_param])
-
-    # Always subscribe homepage service
     router.subscribe_service(candidate_param, ["homepage"])
+
 
     print("OBSERVE CONNECTED:", candidate_param)
 
