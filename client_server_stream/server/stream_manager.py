@@ -20,26 +20,19 @@ class StreamManager:
         candidate_id=None,
         message_id=None,
     ):
-        """
-        Start a streaming session.
-
-        IMPORTANT ARCHITECTURE RULES:
-        - candidate_id represents CLIENT identity.
-        - Services/channels are managed separately by router.
-        - Streaming should NEVER change subscription state.
-        """
-
         print("STREAM STARTED:", plugin_name, channels, payload)
 
-        # Candidate ID must come from client identity (not channels)
+        # Candidate identity required
         if not candidate_id:
-            raise ValueError("candidate_id must be provided by client identity")
+            raise ValueError("candidate_id required")
 
         if not message_id:
             message_id = uuid.uuid4().hex
 
         plugin = self.plugins.get(plugin_name)
+
         if not plugin:
+            print("PLUGIN NOT FOUND:", plugin_name)
             if ws and ws.application_state == WebSocketState.CONNECTED:
                 await ws.send_json(
                     build_message(
@@ -55,40 +48,62 @@ class StreamManager:
                 )
             return
 
-        # Normalize channels (informational only, not subscription control)
+        print("PLUGIN FOUND:", plugin)
+
+        # Normalize channels list
         if isinstance(channels, str):
             channels = [channels]
 
-        # STREAM EXECUTION
+        channel_tag = channels[0] if channels else "homepage"
+
         try:
+            print("STARTING PLUGIN STREAM...")
+
             async for chunk in plugin.stream(payload):
+                print("PLUGIN CHUNK:", chunk)
+
                 chunk_msg = build_message(
                     event=Event.STREAM_CHUNK,
                     stream_id=stream_id,
                     candidate_id=candidate_id,
+                    channel=channel_tag,   # <-- CRITICAL FIX
                     message_id=message_id,
                     data={"payload": chunk},
                 )
 
-                # Optional control socket echo
+                # Send back on control socket if present
                 if ws and ws.application_state == WebSocketState.CONNECTED:
                     await ws.send_json(chunk_msg)
 
-                # Router handles who actually receives it
+                # Emit via router
                 await router.emit_candidate(candidate_id, chunk_msg)
 
         except Exception as e:
-            print("STREAM ERROR:", e)
+            print("PLUGIN STREAM ERROR:", e)
 
-        # STREAM END MESSAGE
-        end_msg = build_message(
-            event=Event.STREAM_END,
-            stream_id=stream_id,
-            candidate_id=candidate_id,
-            message_id=message_id,
-        )
+            error_msg = build_message(
+                event=Event.ERROR,
+                stream_id=stream_id,
+                candidate_id=candidate_id,
+                channel=channel_tag,
+                message_id=message_id,
+                data={"message": str(e)},
+            )
 
-        if ws and ws.application_state == WebSocketState.CONNECTED:
-            await ws.send_json(end_msg)
+            await router.emit_candidate(candidate_id, error_msg)
 
-        await router.emit_candidate(candidate_id, end_msg)
+        finally:
+            print("STREAM COMPLETE")
+
+            end_msg = build_message(
+                event=Event.STREAM_END,
+                stream_id=stream_id,
+                candidate_id=candidate_id,
+                channel=channel_tag,
+                message_id=message_id,
+            )
+
+            if ws and ws.application_state == WebSocketState.CONNECTED:
+                await ws.send_json(end_msg)
+
+            await router.emit_candidate(candidate_id, end_msg)
