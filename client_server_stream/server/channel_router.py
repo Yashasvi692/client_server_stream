@@ -1,4 +1,5 @@
 from collections import defaultdict
+from email.mime import message
 import json
 
 class ChannelRouter:
@@ -84,5 +85,18 @@ class ChannelRouter:
                     await ws.send_text(json.dumps(message))
                 except Exception:
                     pass
+    async def emit_channel(self, channel, message):
+        """
+        Broadcast a message to all candidates subscribed
+        to a specific service channel (e.g., homepage).
+        """
+        subscribers = self.channels.get(channel, set())
+
+        for ws in list(subscribers):
+            try:
+                await ws.send_text(json.dumps(message))
+            except Exception:
+                pass
+            
 
 router = ChannelRouter()
