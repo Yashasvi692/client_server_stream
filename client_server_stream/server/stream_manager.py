@@ -22,7 +22,6 @@ class StreamManager:
     ):
         print("STREAM STARTED:", plugin_name, channels, payload)
 
-        # Candidate identity required
         if not candidate_id:
             raise ValueError("candidate_id required")
 
@@ -33,28 +32,13 @@ class StreamManager:
 
         if not plugin:
             print("PLUGIN NOT FOUND:", plugin_name)
-            if ws and ws.application_state == WebSocketState.CONNECTED:
-                await ws.send_json(
-                    build_message(
-                        event=Event.ERROR,
-                        stream_id=stream_id,
-                        candidate_id=candidate_id,
-                        message_id=message_id,
-                        data={
-                            "code": "UNKNOWN_PLUGIN",
-                            "message": f"No plugin '{plugin_name}'",
-                        },
-                    )
-                )
             return
 
         print("PLUGIN FOUND:", plugin)
 
-        # Normalize channels list
+        # Normalize channels
         if isinstance(channels, str):
             channels = [channels]
-
-        channel_tag = channels[0] if channels else "homepage"
 
         try:
             print("STARTING PLUGIN STREAM...")
@@ -62,48 +46,38 @@ class StreamManager:
             async for chunk in plugin.stream(payload):
                 print("PLUGIN CHUNK:", chunk)
 
-                chunk_msg = build_message(
-                    event=Event.STREAM_CHUNK,
-                    stream_id=stream_id,
-                    candidate_id=candidate_id,
-                    channel=channel_tag,   # <-- CRITICAL FIX
-                    message_id=message_id,
-                    data={"payload": chunk},
-                )
+                # Emit chunk to EACH channel
+                for ch in channels:
+                    chunk_msg = build_message(
+                        event=Event.STREAM_CHUNK,
+                        stream_id=stream_id,
+                        candidate_id=candidate_id,
+                        channel=ch,
+                        message_id=message_id,
+                        data={"payload": chunk},
+                    )
 
-                # Send back on control socket if present
-                if ws and ws.application_state == WebSocketState.CONNECTED:
-                    await ws.send_json(chunk_msg)
+                    if ws and ws.application_state == WebSocketState.CONNECTED:
+                        await ws.send_json(chunk_msg)
 
-                # Emit via router
-                await router.emit_candidate(candidate_id, chunk_msg)
+                    await router.emit_candidate(candidate_id, chunk_msg)
 
         except Exception as e:
             print("PLUGIN STREAM ERROR:", e)
 
-            error_msg = build_message(
-                event=Event.ERROR,
-                stream_id=stream_id,
-                candidate_id=candidate_id,
-                channel=channel_tag,
-                message_id=message_id,
-                data={"message": str(e)},
-            )
-
-            await router.emit_candidate(candidate_id, error_msg)
-
         finally:
             print("STREAM COMPLETE")
 
-            end_msg = build_message(
-                event=Event.STREAM_END,
-                stream_id=stream_id,
-                candidate_id=candidate_id,
-                channel=channel_tag,
-                message_id=message_id,
-            )
+            for ch in channels:
+                end_msg = build_message(
+                    event=Event.STREAM_END,
+                    stream_id=stream_id,
+                    candidate_id=candidate_id,
+                    channel=ch,
+                    message_id=message_id,
+                )
 
-            if ws and ws.application_state == WebSocketState.CONNECTED:
-                await ws.send_json(end_msg)
+                if ws and ws.application_state == WebSocketState.CONNECTED:
+                    await ws.send_json(end_msg)
 
-            await router.emit_candidate(candidate_id, end_msg)
+                await router.emit_candidate(candidate_id, end_msg)
