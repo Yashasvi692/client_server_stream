@@ -60,7 +60,11 @@ class StreamManager:
                     if ws and ws.application_state == WebSocketState.CONNECTED:
                         await ws.send_json(chunk_msg)
 
-                    await router.emit_candidate(candidate_id, chunk_msg)
+                    if ch == "homepage":
+                        await router.emit_channel("homepage", chunk_msg)
+                    else:
+                        await router.emit_candidate(candidate_id, chunk_msg)
+
 
         except Exception as e:
             print("PLUGIN STREAM ERROR:", e)
@@ -80,4 +84,8 @@ class StreamManager:
                 if ws and ws.application_state == WebSocketState.CONNECTED:
                     await ws.send_json(end_msg)
 
-                await router.emit_candidate(candidate_id, end_msg)
+                if ch == "homepage":
+                    await router.emit_channel("homepage", end_msg)
+                else:
+                    await router.emit_candidate(candidate_id, end_msg)
+
