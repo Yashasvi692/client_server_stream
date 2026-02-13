@@ -87,16 +87,22 @@ class ChannelRouter:
                     pass
     async def emit_channel(self, channel, message):
         """
-        Broadcast a message to all candidates subscribed
-        to a specific service channel (e.g., homepage).
+        Broadcast message to all candidates subscribed to a service.
         """
-        subscribers = self.channels.get(channel, set())
 
-        for ws in list(subscribers):
-            try:
-                await ws.send_text(json.dumps(message))
-            except Exception:
-                pass
+        seen = set()
+
+        for candidate_id, services in self.client_services.items():
+            if channel in services:
+                for ws in self.candidates.get(candidate_id, []):
+                    if ws not in seen:
+                        seen.add(ws)
+                        try:
+                            print(f"BROADCAST {channel} -> {candidate_id}", message)
+                            await ws.send_text(json.dumps(message))
+                        except Exception:
+                            pass
+
             
 
 router = ChannelRouter()
